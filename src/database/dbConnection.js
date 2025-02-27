@@ -2,8 +2,9 @@ const mongoose = require("mongoose");
 
 function dbConnect() {
   mongoose
-  .connect("mongodb+srv://osomeblosome:sTrQNC1gFqNL9BCE@cluster0.0omkg.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0", {
-    useNewUrlParser: true,
+  .connect("mongodb+srv://laveshcharmteam:jT1zEfVfIaWhgOCs@cluster0.axazp.mongodb.net/product", {
+
+     useNewUrlParser: true,
       useUnifiedTopology: true,
     })
     .then(() => console.log("MongoDB Connected"))
