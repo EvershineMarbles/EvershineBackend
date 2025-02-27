@@ -1,0 +1,286 @@
+const { putObject } = require("../common/s3CommonMethods")
+const Post = require("../database/models/postModel")
+
+// Create post
+const createPost = async (req, res) => {
+  try {
+    console.log("Full request:", {
+      body: req.body,
+      files: req.files,
+      headers: req.headers
+    })
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        msg: "You must upload at least one image" 
+      })
+    }
+
+    const price = parseFloat(req.body.price)
+    const quantityAvailable = parseFloat(req.body.quantityAvailable)
+
+    if (isNaN(price) || price <= 0) {
+      return res.status(400).json({
+        success: false,
+        msg: "Price must be a valid positive number"
+      })
+    }
+
+    if (isNaN(quantityAvailable) || quantityAvailable < 0) {
+      return res.status(400).json({
+        success: false,
+        msg: "Quantity must be a valid non-negative number"
+      })
+    }
+
+    const requiredFields = [
+      'name',
+      'category',
+      'applicationAreas'
+    ]
+
+    for (const field of requiredFields) {
+      if (!req.body[field]) {
+        return res.status(400).json({
+          success: false,
+          msg: `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
+        })
+      }
+    }
+
+    console.log("Attempting to upload images to S3...")
+    const s3UploadLinks = await Promise.all(
+      req.files.map(async (image) => {
+        const uploadParams = {
+          Bucket: "evershine-product",
+          Key: `${Date.now()}-${image.originalname}`,
+          Body: image.buffer,
+          ContentType: image.mimetype,
+        }
+
+        try {
+          return await putObject(uploadParams)
+        } catch (error) {
+          console.error("S3 upload error:", error)
+          throw new Error(`Failed to upload image: ${error.message}`)
+        }
+      }),
+    )
+
+    console.log("S3 upload successful:", s3UploadLinks)
+
+    const post = new Post({
+      name: req.body.name,
+      price: price,
+      category: req.body.category,
+      applicationAreas: req.body.applicationAreas,
+      description: req.body.description || "",
+      quantityAvailable: quantityAvailable,
+      image: s3UploadLinks,
+      status: req.body.status || "draft" // Default status is draft
+    })
+
+    console.log("Attempting to save post:", post)
+    const postData = await post.save()
+    console.log("Post saved successfully:", postData)
+
+    res.status(200).json({
+      success: true,
+      msg: "Post created successfully",
+      data: postData,
+    })
+  } catch (error) {
+    console.error("Detailed error:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    })
+
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error",
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    })
+  }
+}
+
+// Get post by ID
+const getPostDataById = async (req, res) => {
+  try {
+    const { id } = req.query
+    console.log("Searching for post with ID:", id)
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        msg: "Post ID is required"
+      })
+    }
+
+    const post = await Post.find({ postId: id })
+    console.log("Found post:", post)
+
+    if (!post || post.length === 0) {
+      return res.status(404).json({
+        success: false,
+        msg: "Post not found"
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      data: post
+    })
+  } catch (error) {
+    console.error("Error fetching post:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error"
+    })
+  }
+}
+
+// Get all products with optional status filter
+const getAllProducts = async (req, res) => {
+  try {
+    const { status } = req.query
+    const query = status && status !== 'all' ? { status } : {}
+    
+    const posts = await Post.find(query).sort({ createdAt: -1 })
+    res.status(200).json({
+      success: true,
+      data: posts
+    })
+  } catch (error) {
+    console.error("Error fetching posts:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error"
+    })
+  }
+}
+
+// Delete product
+const deleteProduct = async (req, res) => {
+  try {
+    const { id } = req.params
+    const post = await Post.findOneAndDelete({ postId: id })
+    
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        msg: "Product not found"
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      msg: "Product deleted successfully"
+    })
+  } catch (error) {
+    console.error("Error deleting product:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error"
+    })
+  }
+}
+
+// Update product
+const updateProduct = async (req, res) => {
+  try {
+    const { id } = req.params
+    const updates = { ...req.body }
+
+    // Handle image uploads if new images are provided
+    if (req.files && req.files.length > 0) {
+      const s3UploadLinks = await Promise.all(
+        req.files.map(async (image) => {
+          const uploadParams = {
+            Bucket: "evershine-product",
+            Key: `${Date.now()}-${image.originalname}`,
+            Body: image.buffer,
+            ContentType: image.mimetype,
+          }
+          return await putObject(uploadParams)
+        })
+      )
+      updates.image = s3UploadLinks
+    }
+
+    const post = await Post.findOneAndUpdate(
+      { postId: id },
+      updates,
+      { new: true, runValidators: true }
+    )
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        msg: "Product not found"
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      msg: "Product updated successfully",
+      data: post
+    })
+  } catch (error) {
+    console.error("Error updating product:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error"
+    })
+  }
+}
+
+// Update product status
+const updateProductStatus = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status } = req.body
+
+    if (!['pending', 'approved', 'draft'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        msg: "Invalid status value"
+      })
+    }
+
+    const post = await Post.findOneAndUpdate(
+      { postId: id },
+      { status },
+      { new: true }
+    )
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        msg: "Product not found"
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      msg: "Product status updated successfully",
+      data: post
+    })
+  } catch (error) {
+    console.error("Error updating product status:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error"
+    })
+  }
+}
+
+module.exports = {
+  createPost,
+  getPostDataById,
+  getAllProducts,
+  deleteProduct,
+  updateProduct,
+  updateProductStatus
+}
