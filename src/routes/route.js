@@ -19,32 +19,91 @@ const upload = multer({
     }
     cb(null, true)
   },
-})
+}).fields([
+  { name: 'images', maxCount: 4 },
+  { name: 'newImages', maxCount: 4 }
+])
+
+// Error handling middleware for multer
+const handleMulterError = (err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        msg: "File size too large. Maximum size is 5MB"
+      })
+    }
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({
+        success: false,
+        msg: "Too many files. Maximum is 4 images"
+      })
+    }
+    return res.status(400).json({
+      success: false,
+      msg: err.message
+    })
+  }
+  next(err)
+}
+
+// Validation middleware
+const validateRequiredFields = (req, res, next) => {
+  const requiredFields = ['name', 'category', 'applicationAreas', 'price', 'quantityAvailable']
+  const missingFields = requiredFields.filter(field => !req.body[field])
+  
+  if (missingFields.length > 0) {
+    return res.status(400).json({
+      success: false,
+      msg: `Missing required fields: ${missingFields.join(', ')}`
+    })
+  }
+  next()
+}
 
 // Test route
 router.get("/test", (req, res) => {
-  res.json({ message: "API routes are working" })
+  res.json({ 
+    message: "API routes are working",
+    timestamp: new Date().toISOString()
+  })
 })
 
 // Create new post
-router.post("/create-post", upload.array("images", 4), async (req, res, next) => {
-  try {
-    console.log("Create post request received:", {
-      body: req.body,
-      files: req.files?.length
-    })
-    await postController.createPost(req, res)
-  } catch (error) {
-    next(error)
+router.post(
+  "/create-post",
+  (req, res, next) => upload({ limits: { fileSize: 5 * 1024 * 1024 } })(req, res, (err) => {
+    if (err) return handleMulterError(err, req, res, next)
+    next()
+  }),
+  validateRequiredFields,
+  async (req, res, next) => {
+    try {
+      console.log("Create post request received:", {
+        body: {
+          ...req.body,
+          images: req.files?.images?.length || 0
+        },
+        timestamp: new Date().toISOString()
+      })
+      await postController.createPost(req, res)
+    } catch (error) {
+      console.error("Error in create post route:", error)
+      next(error)
+    }
   }
-})
+)
 
 // Get all products
 router.get("/getAllProducts", async (req, res, next) => {
   try {
-    console.log("Get all products request received")
+    console.log("Get all products request received:", {
+      query: req.query,
+      timestamp: new Date().toISOString()
+    })
     await postController.getAllProducts(req, res)
   } catch (error) {
+    console.error("Error in get all products route:", error)
     next(error)
   }
 })
@@ -52,9 +111,19 @@ router.get("/getAllProducts", async (req, res, next) => {
 // Get post by ID
 router.get("/getPostDataById", async (req, res, next) => {
   try {
-    console.log("Get post by ID request received:", req.query.id)
+    console.log("Get post by ID request received:", {
+      id: req.query.id,
+      timestamp: new Date().toISOString()
+    })
+    if (!req.query.id) {
+      return res.status(400).json({
+        success: false,
+        msg: "Post ID is required"
+      })
+    }
     await postController.getPostDataById(req, res)
   } catch (error) {
+    console.error("Error in get post by ID route:", error)
     next(error)
   }
 })
@@ -62,38 +131,100 @@ router.get("/getPostDataById", async (req, res, next) => {
 // Delete post
 router.delete("/deleteProduct/:id", async (req, res, next) => {
   try {
-    console.log("Delete product request received:", req.params.id)
+    console.log("Delete product request received:", {
+      id: req.params.id,
+      timestamp: new Date().toISOString()
+    })
+    if (!req.params.id) {
+      return res.status(400).json({
+        success: false,
+        msg: "Product ID is required"
+      })
+    }
     await postController.deleteProduct(req, res)
   } catch (error) {
+    console.error("Error in delete product route:", error)
     next(error)
   }
 })
 
 // Update post
-router.put("/updateProduct/:id", upload.array("images", 4), async (req, res, next) => {
-  try {
-    console.log("Update product request received:", {
-      id: req.params.id,
-      body: req.body,
-      files: req.files?.length
-    })
-    await postController.updateProduct(req, res)
-  } catch (error) {
-    next(error)
+router.put(
+  "/updateProduct/:id",
+  (req, res, next) => upload(req, res, (err) => {
+    if (err) return handleMulterError(err, req, res, next)
+    next()
+  }),
+  async (req, res, next) => {
+    try {
+      console.log("Update product request received:", {
+        id: req.params.id,
+        body: {
+          ...req.body,
+          existingImages: req.body.existingImages ? 'present' : 'not present',
+          newImages: req.files?.newImages?.length || 0
+        },
+        timestamp: new Date().toISOString()
+      })
+
+      if (!req.params.id) {
+        return res.status(400).json({
+          success: false,
+          msg: "Product ID is required"
+        })
+      }
+
+      // Prepare files for the controller
+      if (req.files?.newImages) {
+        req.files = req.files.newImages
+      }
+
+      await postController.updateProduct(req, res)
+    } catch (error) {
+      console.error("Error in update product route:", error)
+      next(error)
+    }
   }
-})
+)
 
 // Update status
 router.patch("/updateProductStatus/:id", async (req, res, next) => {
   try {
     console.log("Update status request received:", {
       id: req.params.id,
-      status: req.body.status
+      status: req.body.status,
+      timestamp: new Date().toISOString()
     })
+
+    if (!req.params.id) {
+      return res.status(400).json({
+        success: false,
+        msg: "Product ID is required"
+      })
+    }
+
+    if (!req.body.status) {
+      return res.status(400).json({
+        success: false,
+        msg: "Status is required"
+      })
+    }
+
     await postController.updateProductStatus(req, res)
   } catch (error) {
+    console.error("Error in update status route:", error)
     next(error)
   }
+})
+
+// Global error handler
+router.use((error, req, res, next) => {
+  console.error("Global error handler:", error)
+  res.status(500).json({
+    success: false,
+    msg: "Internal server error",
+    error: process.env.NODE_ENV === 'development' ? error.message : undefined
+  })
 })
 
 module.exports = router

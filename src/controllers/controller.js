@@ -192,8 +192,45 @@ const updateProduct = async (req, res) => {
   try {
     const { id } = req.params
     const updates = { ...req.body }
+    
+    // Parse and validate numeric fields
+    if (updates.price) {
+      const price = parseFloat(updates.price)
+      if (isNaN(price) || price <= 0) {
+        return res.status(400).json({
+          success: false,
+          msg: "Price must be a valid positive number"
+        })
+      }
+      updates.price = price
+    }
 
-    // Handle image uploads if new images are provided
+    if (updates.quantityAvailable) {
+      const quantityAvailable = parseFloat(updates.quantityAvailable)
+      if (isNaN(quantityAvailable) || quantityAvailable < 0) {
+        return res.status(400).json({
+          success: false,
+          msg: "Quantity must be a valid non-negative number"
+        })
+      }
+      updates.quantityAvailable = quantityAvailable
+    }
+
+    // Handle images
+    let finalImages = []
+    
+    // Handle existing images
+    if (updates.existingImages) {
+      try {
+        const existingImages = JSON.parse(updates.existingImages)
+        finalImages = [...existingImages]
+      } catch (error) {
+        console.error("Error parsing existing images:", error)
+      }
+      delete updates.existingImages // Remove from updates object
+    }
+
+    // Handle new image uploads
     if (req.files && req.files.length > 0) {
       const s3UploadLinks = await Promise.all(
         req.files.map(async (image) => {
@@ -206,8 +243,26 @@ const updateProduct = async (req, res) => {
           return await putObject(uploadParams)
         })
       )
-      updates.image = s3UploadLinks
+      finalImages = [...finalImages, ...s3UploadLinks]
     }
+
+    // Update images array if we have any images
+    if (finalImages.length > 0) {
+      updates.image = finalImages
+    }
+
+    // Validate required fields if they are being updated
+    const requiredFields = ['name', 'category', 'applicationAreas']
+    for (const field of requiredFields) {
+      if (updates[field] === '') {
+        return res.status(400).json({
+          success: false,
+          msg: `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
+        })
+      }
+    }
+
+    console.log("Updating product with data:", updates)
 
     const post = await Post.findOneAndUpdate(
       { postId: id },
@@ -222,6 +277,8 @@ const updateProduct = async (req, res) => {
       })
     }
 
+    console.log("Product updated successfully:", post)
+
     res.status(200).json({
       success: true,
       msg: "Product updated successfully",
@@ -231,7 +288,8 @@ const updateProduct = async (req, res) => {
     console.error("Error updating product:", error)
     res.status(500).json({
       success: false,
-      msg: error.message || "Internal server error"
+      msg: error.message || "Internal server error",
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     })
   }
 }
