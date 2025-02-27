@@ -6,9 +6,15 @@ const app = express()
 
 // Middleware
 app.use(cors({
-  origin: "http://localhost:3000",
+  origin: [
+    "http://localhost:3000",
+    "https://evershine-marbles.vercel.app",
+    "https://evershine-marbles-git-main-sonalbaheti.vercel.app",
+    "https://evershine-marbles-sonalbaheti.vercel.app"
+  ],
   methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
 }))
 
 app.use(express.json({ limit: '50mb' }))
