@@ -20,11 +20,11 @@ app.use(cors({
   optionsSuccessStatus: 200
 }))
 
-// Body parser middleware - before routes
+// Body parser middleware
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
-// Simple route logging middleware
+// Route logging middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`)
   next()
@@ -35,34 +35,26 @@ app.get("/", (req, res) => {
   res.json({
     status: "ok",
     message: "Evershine API Server is running",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
   })
 })
 
-// Test route
-app.get("/test", (req, res) => {
-  res.json({
-    message: "API test endpoint is working",
-    timestamp: new Date().toISOString()
-  })
-})
-
-// API routes - make sure this comes after body parser middleware
+// API routes
 app.use("/api", routes)
 
-// 404 handler - after routes
+// 404 handler
 app.use((req, res) => {
   console.log(`404 - Not Found: ${req.method} ${req.path}`)
   res.status(404).json({
     success: false,
     message: "Route not found",
     path: req.path,
-    method: req.method,
-    timestamp: new Date().toISOString()
+    method: req.method
   })
 })
 
-// Error handler - last middleware
+// Error handler
 app.use((err, req, res, next) => {
   console.error("Error:", {
     message: err.message,
@@ -78,19 +70,30 @@ app.use((err, req, res, next) => {
   })
 })
 
-// Database connection
-dbConnect().catch(console.error)
-
-const PORT = process.env.PORT || 8000
-app.listen(PORT, () => {
-  console.log(`
+// Initialize server
+const startServer = async () => {
+  try {
+    // Connect to MongoDB
+    await dbConnect()
+    
+    // Start Express server
+    const PORT = process.env.PORT || 8000
+    app.listen(PORT, () => {
+      console.log(`
 Server is running!
 ==================
 - Port: ${PORT}
 - Environment: ${process.env.NODE_ENV}
 - Health Check: http://localhost:${PORT}/
 - API Base URL: http://localhost:${PORT}/api
-- Test endpoint: http://localhost:${PORT}/test
 ==================
-  `)
-})
+      `)
+    })
+  } catch (error) {
+    console.error("Failed to start server:", error)
+    process.exit(1)
+  }
+}
+
+// Start the server
+startServer()
