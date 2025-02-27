@@ -2,9 +2,8 @@ const mongoose = require("mongoose")
 
 const dbConnect = async () => {
   try {
-    if (!process.env.MONGODB_URI) {
-      throw new Error("MONGODB_URI is not defined in environment variables")
-    }
+    // Hardcoded MongoDB URI for testing
+    const MONGODB_URI = "mongodb+srv://osomeblosome:sTrQNC1gFqNL9BCE@cluster0.axazp.mongodb.net/product?retryWrites=true&w=majority"
 
     const options = {
       useNewUrlParser: true,
@@ -13,18 +12,10 @@ const dbConnect = async () => {
 
     console.log("Connecting to MongoDB...")
     
-    const connection = await mongoose.connect(process.env.MONGODB_URI, options)
+    const connection = await mongoose.connect(MONGODB_URI, options)
     
     console.log("MongoDB Connected Successfully!")
     console.log("Connected to database:", connection.connection.name)
-
-    mongoose.connection.on("error", (err) => {
-      console.error("MongoDB connection error:", err)
-    })
-
-    mongoose.connection.on("disconnected", () => {
-      console.log("MongoDB disconnected")
-    })
 
     return connection
   } catch (error) {
@@ -33,7 +24,7 @@ const dbConnect = async () => {
       code: error.code,
       codeName: error.codeName
     })
-    throw error // Re-throw the error to be caught by the caller
+    throw error
   }
 }
 

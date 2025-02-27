@@ -1,5 +1,6 @@
 const express = require("express")
 const cors = require("cors")
+const mongoose = require("mongoose")  // Add this line
 const routes = require("./src/routes/route")
 const dbConnect = require("./src/database/dbConnection")
 const app = express()
