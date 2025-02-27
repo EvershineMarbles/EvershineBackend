@@ -4,7 +4,7 @@ const routes = require("./src/routes/route")
 const dbConnect = require("./src/database/dbConnection")
 const app = express()
 
-// Updated CORS configuration
+// CORS configuration
 app.use(cors({
   origin: [
     "http://localhost:3000",
@@ -14,42 +14,83 @@ app.use(cors({
     "https://evershine-git-main-evershines-projects.vercel.app",
     "https://evershine-qaq7so0sm-evershines-projects.vercel.app"
   ],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
   credentials: true,
   optionsSuccessStatus: 200
 }))
 
-// Add a health check route
-app.get("/", (req, res) => {
-  res.json({ message: "Server is running" })
-})
-
+// Body parser middleware - before routes
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
-// Connect to database
-dbConnect()
+// Simple route logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`)
+  next()
+})
 
-// Routes
+// Health check route
+app.get("/", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "Evershine API Server is running",
+    timestamp: new Date().toISOString()
+  })
+})
+
+// Test route
+app.get("/test", (req, res) => {
+  res.json({
+    message: "API test endpoint is working",
+    timestamp: new Date().toISOString()
+  })
+})
+
+// API routes - make sure this comes after body parser middleware
 app.use("/api", routes)
 
-// Error handling middleware
+// 404 handler - after routes
+app.use((req, res) => {
+  console.log(`404 - Not Found: ${req.method} ${req.path}`)
+  res.status(404).json({
+    success: false,
+    message: "Route not found",
+    path: req.path,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  })
+})
+
+// Error handler - last middleware
 app.use((err, req, res, next) => {
-  console.error("Error details:", {
+  console.error("Error:", {
     message: err.message,
     stack: err.stack,
-    name: err.name
+    path: req.path,
+    method: req.method
   })
 
   res.status(err.status || 500).json({
     success: false,
-    msg: err.message || "Internal server error",
-    details: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    message: err.message || "Internal server error",
+    timestamp: new Date().toISOString()
   })
 })
 
+// Database connection
+dbConnect().catch(console.error)
+
 const PORT = process.env.PORT || 8000
 app.listen(PORT, () => {
-  console.log(`Server is Running on port ${PORT}`)
+  console.log(`
+Server is running!
+==================
+- Port: ${PORT}
+- Environment: ${process.env.NODE_ENV}
+- Health Check: http://localhost:${PORT}/
+- API Base URL: http://localhost:${PORT}/api
+- Test endpoint: http://localhost:${PORT}/test
+==================
+  `)
 })
