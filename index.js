@@ -8,10 +8,7 @@ const app = express()
 app.use(cors({
   origin: [
     "http://localhost:3000",
-    "https://evershine-marbles.vercel.app",
-    "https://evershine-marbles-git-main-sonalbaheti.vercel.app",
-    "https://evershine-marbles-sonalbaheti.vercel.app",
-    "https://evershine-two.vercel.app"
+    "https://evershine-two.vercel.app/"
   ],
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"],
