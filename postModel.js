@@ -30,17 +30,25 @@ const postSchema = mongoose.Schema({
     },
   },
   applicationAreas: {
-    type: String,
-    required: [true, "Application area is required"],
-    enum: {
-      values: ["Flooring", "Countertops", "Walls", "Exterior", "Interior"],
-      message: "{VALUE} is not a valid application area",
-    },
+    type: [String], // Changed to array of strings
+    required: [true, "At least one application area is required"],
+    validate: {
+      validator: function(v) {
+        // Check if it's an array and has at least one value
+        if (!Array.isArray(v) || v.length === 0) {
+          return false;
+        }
+        // Check if all values are valid application areas
+        const validAreas = ["Flooring", "Countertops", "Walls", "Exterior", "Interior"];
+        return v.every(area => validAreas.includes(area));
+      },
+      message: "Invalid application areas. Must include at least one valid area"
+    }
   },
   description: {
     type: String,
-    required: false, // Make description optional
-    default: "", // Provide default empty string
+    required: false,
+    default: "",
   },
   quantityAvailable: {
     type: Number,
@@ -50,12 +58,20 @@ const postSchema = mongoose.Schema({
   image: {
     type: [String],
     required: [true, "At least one image is required"],
-    validate: {
-      validator: function(v) {
-        return Array.isArray(v) && v.length > 0
+    validate: [
+      {
+        validator: function(v) {
+          return Array.isArray(v) && v.length > 0;
+        },
+        message: "At least one image is required"
       },
-      message: "At least one image is required"
-    }
+      {
+        validator: function(v) {
+          return Array.isArray(v) && v.length <= 10;
+        },
+        message: "Maximum 10 images are allowed"
+      }
+    ]
   },
   postId: {
     type: String,
@@ -63,8 +79,22 @@ const postSchema = mongoose.Schema({
     unique: true,
     default: () => Date.now().toString() + Math.floor(Math.random() * 1000).toString()
   },
+  status: {
+    type: String,
+    enum: {
+      values: ['draft', 'pending', 'approved'],
+      message: '{VALUE} is not a valid status'
+    },
+    default: 'draft'
+  }
 }, {
   timestamps: true
 })
+
+// Add index for better query performance
+postSchema.index({ postId: 1 })
+postSchema.index({ category: 1 })
+postSchema.index({ status: 1 })
+postSchema.index({ createdAt: -1 })
 
 module.exports = mongoose.model("Post", postSchema)
