@@ -2,7 +2,8 @@ const mongoose = require("mongoose");
 
 function dbConnect() {
   mongoose
-    .connect("mongodb+srv://osomeblosome:sTrQNC1gFqNL9BCE@cluster0.axazp.mongodb.net/product", {
+    .connect("mongodb+srv://laveshcharmteam:jT1zEfVfIaWhgOCs@cluster0.axazp.mongodb.net/product", {
+
       useNewUrlParser: true,
       useUnifiedTopology: true,
     })
