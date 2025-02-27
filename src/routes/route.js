@@ -1,39 +1,85 @@
 const express = require("express")
 const router = express.Router()
-const { createPost } = require("../controllers/controller")
-const upload = require("../common/helper")
+const bodyParser = require("body-parser")
+const multer = require("multer")
 
-// Debug route to test API
-router.get('/test', (req, res) => {
-  res.json({ message: 'API is working' })
+// Increase payload size limits
+router.use(bodyParser.json({ limit: "50mb" }))
+router.use(bodyParser.urlencoded({ extended: true, limit: "50mb" }))
+router.use(express.static("public"))
+
+const storage = multer.memoryStorage()
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    files: 4,
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif"]
+    if (!allowedTypes.includes(file.mimetype)) {
+      return cb(new Error("Only images are allowed"), false)
+    }
+    cb(null, true)
+  },
 })
 
-// Log incoming requests
-router.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`, {
-    body: req.body,
-    query: req.query,
-    headers: req.headers
-  })
-  next()
-})
+const postController = require("../controllers/controller")
 
-// Create post route with error handling
-router.post("/create-post", upload.array("images", 4), async (req, res) => {
+// Create new post
+router.post("/create-post", upload.array("images", 4), (req, res, next) => {
   try {
-    console.log('Received create-post request:', {
-      files: req.files?.length,
-      body: req.body
-    })
-    
-    // Call your existing controller
-    await createPost(req, res)
+    console.log("Received request body:", req.body)
+    console.log("Received files:", req.files)
+    postController.createPost(req, res)
   } catch (error) {
-    console.error('Error in create-post:', error)
-    res.status(500).json({
-      success: false,
-      msg: error.message || 'Internal server error'
-    })
+    next(error)
+  }
+})
+
+// Get post by ID
+router.get("/getPostDataById", (req, res, next) => {
+  try {
+    postController.getPostDataById(req, res)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Get all posts
+router.get("/getAllProducts", (req, res, next) => {
+  try {
+    postController.getAllProducts(req, res)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Delete post by ID
+router.delete("/deleteProduct/:id", (req, res, next) => {
+  try {
+    postController.deleteProduct(req, res)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Update post by ID
+router.put("/updateProduct/:id", upload.array("images", 4), (req, res, next) => {
+  try {
+    postController.updateProduct(req, res)
+  } catch (error) {
+    next(error)
+  }
+})
+
+// Update post status
+router.patch("/updateProductStatus/:id", (req, res, next) => {
+  try {
+    postController.updateProductStatus(req, res)
+  } catch (error) {
+    next(error)
   }
 })
 
