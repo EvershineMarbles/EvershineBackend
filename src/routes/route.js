@@ -127,7 +127,7 @@ router.get("/getPostDataById", async (req, res, next) => {
   }
 })
 
-// Delete post - Updated with better error handling and logging
+// Delete post - Updated without findProductById check
 router.delete("/deleteProduct/:postId", async (req, res, next) => {
   try {
     const { postId } = req.params
@@ -141,23 +141,6 @@ router.delete("/deleteProduct/:postId", async (req, res, next) => {
       return res.status(400).json({
         success: false,
         msg: "Product ID is required",
-      })
-    }
-
-    // Validate postId format if needed
-    // if (!/^[a-zA-Z0-9-]+$/.test(postId)) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     msg: "Invalid Product ID format"
-    //   })
-    // }
-
-    // Find product before deletion to check if it exists
-    const product = await postController.findProductById(postId)
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        msg: "Product not found",
       })
     }
 

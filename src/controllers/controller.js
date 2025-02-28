@@ -157,11 +157,10 @@ const getAllProducts = async (req, res) => {
   }
 }
 
-// Delete product - Updated with S3 image deletion
+// Delete product - Updated with proper error handling
 const deleteProduct = async (req, res) => {
   try {
     const { postId } = req.params
-    console.log("Attempting to delete product with postId:", postId)
 
     // Find the product first to get image URLs
     const product = await Post.findOne({ postId })
@@ -220,8 +219,8 @@ const deleteProduct = async (req, res) => {
     console.error("Error in deleteProduct:", error)
     res.status(500).json({
       success: false,
-      msg: error.message || "Internal server error",
-      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+      msg: "Internal server error",
+      error: error.message,
     })
   }
 }
