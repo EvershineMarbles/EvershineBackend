@@ -147,52 +147,49 @@ router.delete("/deleteProduct/:postId", async (req, res, next) => {
   }
 })
 
-// Update post - Modified to handle both JSON and multipart form data
-router.put("/updateProduct/:id", async (req, res, next) => {
-  try {
-    // Check content type and handle accordingly
-    if (req.is("multipart/form-data")) {
-      upload.array("newImages", 10)(req, res, async (err) => {
-        if (err) return handleMulterError(err, req, res, next)
-
-        console.log("Update product request received (multipart):", {
-          id: req.params.id,
-          body: {
-            ...req.body,
-            existingImages: req.body.existingImages ? "present" : "not present",
-            newImages: req.files?.length || 0,
-          },
-          timestamp: new Date().toISOString(),
-        })
-
-        try {
-          await postController.updateProduct(req, res)
-        } catch (error) {
-          next(error)
-        }
-      })
-    } else {
-      // Handle JSON request
-      console.log("Update product request received (JSON):", {
+// Update post route - Simplified to handle JSON data
+router
+  .route("/updateProduct/:id")
+  .put(async (req, res, next) => {
+    try {
+      console.log("Update product request received:", {
         id: req.params.id,
         body: req.body,
         timestamp: new Date().toISOString(),
       })
-
-      if (!req.params.id) {
-        return res.status(400).json({
-          success: false,
-          msg: "Product ID is required",
+      if (req.is("multipart/form-data")) {
+        upload.array("newImages", 10)(req, res, async (err) => {
+          if (err) return handleMulterError(err, req, res, next)
+          await postController.updateProduct(req, res)
         })
+      } else {
+        await postController.updateProduct(req, res)
       }
-
-      await postController.updateProduct(req, res)
+    } catch (error) {
+      console.error("Error in update product route:", error)
+      next(error)
     }
-  } catch (error) {
-    console.error("Error in update product route:", error)
-    next(error)
-  }
-})
+  })
+  .post(async (req, res, next) => {
+    try {
+      console.log("Update product request received:", {
+        id: req.params.id,
+        body: req.body,
+        timestamp: new Date().toISOString(),
+      })
+      if (req.is("multipart/form-data")) {
+        upload.array("newImages", 10)(req, res, async (err) => {
+          if (err) return handleMulterError(err, req, res, next)
+          await postController.updateProduct(req, res)
+        })
+      } else {
+        await postController.updateProduct(req, res)
+      }
+    } catch (error) {
+      console.error("Error in update product route:", error)
+      next(error)
+    }
+  })
 
 // Update status
 router.patch("/updateProductStatus/:id", async (req, res, next) => {
