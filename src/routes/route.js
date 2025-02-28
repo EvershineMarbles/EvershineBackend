@@ -9,20 +9,17 @@ const storage = multer.memoryStorage()
 const upload = multer({
   storage: storage,
   limits: {
-    files: 4,
+    files: 10, // Updated to 10 files
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ["image/jpeg", "image/png", "image/gif"]
+    const allowedTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"]
     if (!allowedTypes.includes(file.mimetype)) {
       return cb(new Error("Only images are allowed"), false)
     }
     cb(null, true)
   },
-}).fields([
-  { name: 'images', maxCount: 4 },
-  { name: 'newImages', maxCount: 4 }
-])
+})
 
 // Error handling middleware for multer
 const handleMulterError = (err, req, res, next) => {
@@ -36,7 +33,7 @@ const handleMulterError = (err, req, res, next) => {
     if (err.code === 'LIMIT_FILE_COUNT') {
       return res.status(400).json({
         success: false,
-        msg: "Too many files. Maximum is 4 images"
+        msg: "Too many files. Maximum is 10 images"
       })
     }
     return res.status(400).json({
@@ -72,17 +69,19 @@ router.get("/test", (req, res) => {
 // Create new post
 router.post(
   "/create-post",
-  (req, res, next) => upload({ limits: { fileSize: 5 * 1024 * 1024 } })(req, res, (err) => {
-    if (err) return handleMulterError(err, req, res, next)
-    next()
-  }),
+  (req, res, next) => {
+    upload.array('images', 10)(req, res, (err) => {
+      if (err) return handleMulterError(err, req, res, next)
+      next()
+    })
+  },
   validateRequiredFields,
   async (req, res, next) => {
     try {
       console.log("Create post request received:", {
         body: {
           ...req.body,
-          images: req.files?.images?.length || 0
+          images: req.files?.length || 0
         },
         timestamp: new Date().toISOString()
       })
@@ -151,10 +150,12 @@ router.delete("/deleteProduct/:id", async (req, res, next) => {
 // Update post
 router.put(
   "/updateProduct/:id",
-  (req, res, next) => upload(req, res, (err) => {
-    if (err) return handleMulterError(err, req, res, next)
-    next()
-  }),
+  (req, res, next) => {
+    upload.array('newImages', 10)(req, res, (err) => {
+      if (err) return handleMulterError(err, req, res, next)
+      next()
+    })
+  },
   async (req, res, next) => {
     try {
       console.log("Update product request received:", {
@@ -162,7 +163,7 @@ router.put(
         body: {
           ...req.body,
           existingImages: req.body.existingImages ? 'present' : 'not present',
-          newImages: req.files?.newImages?.length || 0
+          newImages: req.files?.length || 0
         },
         timestamp: new Date().toISOString()
       })
@@ -172,11 +173,6 @@ router.put(
           success: false,
           msg: "Product ID is required"
         })
-      }
-
-      // Prepare files for the controller
-      if (req.files?.newImages) {
-        req.files = req.files.newImages
       }
 
       await postController.updateProduct(req, res)
