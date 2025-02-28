@@ -1,4 +1,4 @@
-const { putObject } = require("../common/s3CommonMethods")
+const { putObject, deleteObject } = require("../common/s3CommonMethods")
 const Post = require("../database/models/postModel")
 
 // Create post
@@ -7,44 +7,40 @@ const createPost = async (req, res) => {
     console.log("Full request:", {
       body: req.body,
       files: req.files,
-      headers: req.headers
+      headers: req.headers,
     })
 
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        msg: "You must upload at least one image" 
+      return res.status(400).json({
+        success: false,
+        msg: "You must upload at least one image",
       })
     }
 
-    const price = parseFloat(req.body.price)
-    const quantityAvailable = parseFloat(req.body.quantityAvailable)
+    const price = Number.parseFloat(req.body.price)
+    const quantityAvailable = Number.parseFloat(req.body.quantityAvailable)
 
     if (isNaN(price) || price <= 0) {
       return res.status(400).json({
         success: false,
-        msg: "Price must be a valid positive number"
+        msg: "Price must be a valid positive number",
       })
     }
 
     if (isNaN(quantityAvailable) || quantityAvailable < 0) {
       return res.status(400).json({
         success: false,
-        msg: "Quantity must be a valid non-negative number"
+        msg: "Quantity must be a valid non-negative number",
       })
     }
 
-    const requiredFields = [
-      'name',
-      'category',
-      'applicationAreas'
-    ]
+    const requiredFields = ["name", "category", "applicationAreas"]
 
     for (const field of requiredFields) {
       if (!req.body[field]) {
         return res.status(400).json({
           success: false,
-          msg: `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
+          msg: `${field.charAt(0).toUpperCase() + field.slice(1)} is required`,
         })
       }
     }
@@ -78,7 +74,7 @@ const createPost = async (req, res) => {
       description: req.body.description || "",
       quantityAvailable: quantityAvailable,
       image: s3UploadLinks,
-      status: req.body.status || "draft" // Default status is draft
+      status: req.body.status || "draft", // Default status is draft
     })
 
     console.log("Attempting to save post:", post)
@@ -94,13 +90,13 @@ const createPost = async (req, res) => {
     console.error("Detailed error:", {
       message: error.message,
       stack: error.stack,
-      name: error.name
+      name: error.name,
     })
 
     res.status(500).json({
       success: false,
       msg: error.message || "Internal server error",
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     })
   }
 }
@@ -114,7 +110,7 @@ const getPostDataById = async (req, res) => {
     if (!id) {
       return res.status(400).json({
         success: false,
-        msg: "Post ID is required"
+        msg: "Post ID is required",
       })
     }
 
@@ -124,19 +120,19 @@ const getPostDataById = async (req, res) => {
     if (!post || post.length === 0) {
       return res.status(404).json({
         success: false,
-        msg: "Post not found"
+        msg: "Post not found",
       })
     }
 
     res.status(200).json({
       success: true,
-      data: post
+      data: post,
     })
   } catch (error) {
     console.error("Error fetching post:", error)
     res.status(500).json({
       success: false,
-      msg: error.message || "Internal server error"
+      msg: error.message || "Internal server error",
     })
   }
 }
@@ -145,44 +141,87 @@ const getPostDataById = async (req, res) => {
 const getAllProducts = async (req, res) => {
   try {
     const { status } = req.query
-    const query = status && status !== 'all' ? { status } : {}
-    
+    const query = status && status !== "all" ? { status } : {}
+
     const posts = await Post.find(query).sort({ createdAt: -1 })
     res.status(200).json({
       success: true,
-      data: posts
+      data: posts,
     })
   } catch (error) {
     console.error("Error fetching posts:", error)
     res.status(500).json({
       success: false,
-      msg: error.message || "Internal server error"
+      msg: error.message || "Internal server error",
     })
   }
 }
 
-// Delete product
+// Delete product - Updated with S3 image deletion
 const deleteProduct = async (req, res) => {
   try {
-    const { id } = req.params
-    const post = await Post.findOneAndDelete({ postId: id })
-    
-    if (!post) {
+    const { postId } = req.params
+    console.log("Attempting to delete product with postId:", postId)
+
+    // Find the product first to get image URLs
+    const product = await Post.findOne({ postId })
+
+    if (!product) {
       return res.status(404).json({
         success: false,
-        msg: "Product not found"
+        msg: "Product not found",
       })
     }
 
+    // Delete images from S3 if they exist
+    if (product.image && product.image.length > 0) {
+      try {
+        await Promise.all(
+          product.image.map(async (imageUrl) => {
+            // Extract the key from the S3 URL
+            const key = imageUrl.split("/").pop()
+            const deleteParams = {
+              Bucket: "evershine-product",
+              Key: key,
+            }
+
+            try {
+              await deleteObject(deleteParams)
+              console.log(`Successfully deleted image: ${key}`)
+            } catch (error) {
+              console.error(`Error deleting image ${key} from S3:`, error)
+              // Continue with product deletion even if image deletion fails
+            }
+          }),
+        )
+      } catch (error) {
+        console.error("Error in bulk image deletion:", error)
+      }
+    }
+
+    // Delete the product from the database
+    const deletedProduct = await Post.findOneAndDelete({ postId })
+
+    if (!deletedProduct) {
+      return res.status(404).json({
+        success: false,
+        msg: "Failed to delete product",
+      })
+    }
+
+    console.log("Product deleted successfully:", deletedProduct)
+
     res.status(200).json({
       success: true,
-      msg: "Product deleted successfully"
+      msg: "Product and associated images deleted successfully",
+      data: deletedProduct,
     })
   } catch (error) {
-    console.error("Error deleting product:", error)
+    console.error("Error in deleteProduct:", error)
     res.status(500).json({
       success: false,
-      msg: error.message || "Internal server error"
+      msg: error.message || "Internal server error",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     })
   }
 }
@@ -192,25 +231,25 @@ const updateProduct = async (req, res) => {
   try {
     const { id } = req.params
     const updates = { ...req.body }
-    
+
     // Parse and validate numeric fields
     if (updates.price) {
-      const price = parseFloat(updates.price)
+      const price = Number.parseFloat(updates.price)
       if (isNaN(price) || price <= 0) {
         return res.status(400).json({
           success: false,
-          msg: "Price must be a valid positive number"
+          msg: "Price must be a valid positive number",
         })
       }
       updates.price = price
     }
 
     if (updates.quantityAvailable) {
-      const quantityAvailable = parseFloat(updates.quantityAvailable)
+      const quantityAvailable = Number.parseFloat(updates.quantityAvailable)
       if (isNaN(quantityAvailable) || quantityAvailable < 0) {
         return res.status(400).json({
           success: false,
-          msg: "Quantity must be a valid non-negative number"
+          msg: "Quantity must be a valid non-negative number",
         })
       }
       updates.quantityAvailable = quantityAvailable
@@ -218,7 +257,7 @@ const updateProduct = async (req, res) => {
 
     // Handle images
     let finalImages = []
-    
+
     // Handle existing images
     if (updates.existingImages) {
       try {
@@ -241,7 +280,7 @@ const updateProduct = async (req, res) => {
             ContentType: image.mimetype,
           }
           return await putObject(uploadParams)
-        })
+        }),
       )
       finalImages = [...finalImages, ...s3UploadLinks]
     }
@@ -252,28 +291,24 @@ const updateProduct = async (req, res) => {
     }
 
     // Validate required fields if they are being updated
-    const requiredFields = ['name', 'category', 'applicationAreas']
+    const requiredFields = ["name", "category", "applicationAreas"]
     for (const field of requiredFields) {
-      if (updates[field] === '') {
+      if (updates[field] === "") {
         return res.status(400).json({
           success: false,
-          msg: `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
+          msg: `${field.charAt(0).toUpperCase() + field.slice(1)} is required`,
         })
       }
     }
 
     console.log("Updating product with data:", updates)
 
-    const post = await Post.findOneAndUpdate(
-      { postId: id },
-      updates,
-      { new: true, runValidators: true }
-    )
+    const post = await Post.findOneAndUpdate({ postId: id }, updates, { new: true, runValidators: true })
 
     if (!post) {
       return res.status(404).json({
         success: false,
-        msg: "Product not found"
+        msg: "Product not found",
       })
     }
 
@@ -282,14 +317,14 @@ const updateProduct = async (req, res) => {
     res.status(200).json({
       success: true,
       msg: "Product updated successfully",
-      data: post
+      data: post,
     })
   } catch (error) {
     console.error("Error updating product:", error)
     res.status(500).json({
       success: false,
       msg: error.message || "Internal server error",
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     })
   }
 }
@@ -300,36 +335,32 @@ const updateProductStatus = async (req, res) => {
     const { id } = req.params
     const { status } = req.body
 
-    if (!['pending', 'approved', 'draft'].includes(status)) {
+    if (!["pending", "approved", "draft"].includes(status)) {
       return res.status(400).json({
         success: false,
-        msg: "Invalid status value"
+        msg: "Invalid status value",
       })
     }
 
-    const post = await Post.findOneAndUpdate(
-      { postId: id },
-      { status },
-      { new: true }
-    )
+    const post = await Post.findOneAndUpdate({ postId: id }, { status }, { new: true })
 
     if (!post) {
       return res.status(404).json({
         success: false,
-        msg: "Product not found"
+        msg: "Product not found",
       })
     }
 
     res.status(200).json({
       success: true,
       msg: "Product status updated successfully",
-      data: post
+      data: post,
     })
   } catch (error) {
     console.error("Error updating product status:", error)
     res.status(500).json({
       success: false,
-      msg: error.message || "Internal server error"
+      msg: error.message || "Internal server error",
     })
   }
 }
@@ -340,5 +371,6 @@ module.exports = {
   getAllProducts,
   deleteProduct,
   updateProduct,
-  updateProductStatus
+  updateProductStatus,
 }
+
