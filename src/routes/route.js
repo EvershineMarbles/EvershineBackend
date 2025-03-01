@@ -111,10 +111,11 @@ router.get("/getAllProducts", async (req, res, next) => {
 router.get("/getPostDataById", async (req, res, next) => {
   try {
     console.log("Get post by ID request received:", {
-      id: req.query.id,
+      postId: req.query.postId, // Changed from id to postId
       timestamp: new Date().toISOString(),
     })
-    if (!req.query.id) {
+    if (!req.query.postId) {
+      // Changed from id to postId
       return res.status(400).json({
         success: false,
         msg: "Post ID is required",
@@ -133,7 +134,7 @@ router
   .delete(async (req, res, next) => {
     try {
       console.log("Delete product request received (DELETE):", {
-        id: req.params.postId,
+        postId: req.params.postId,
         timestamp: new Date().toISOString(),
       })
       await postController.deleteProduct(req, res)
@@ -145,7 +146,7 @@ router
   .get(async (req, res, next) => {
     try {
       console.log("Delete product request received (GET):", {
-        id: req.params.postId,
+        postId: req.params.postId,
         timestamp: new Date().toISOString(),
       })
       await postController.deleteProduct(req, res)
@@ -157,11 +158,11 @@ router
 
 // Update post route - Modified to handle both PUT and POST methods
 router
-  .route("/updateProduct/:id")
+  .route("/updateProduct/:postId") // Changed from :id to :postId
   .put(async (req, res, next) => {
     try {
       console.log("Update product request received (PUT):", {
-        id: req.params.id,
+        postId: req.params.postId, // Changed from id to postId
         body: req.body,
         timestamp: new Date().toISOString(),
       })
@@ -174,7 +175,7 @@ router
   .post(async (req, res, next) => {
     try {
       console.log("Update product request received (POST):", {
-        id: req.params.id,
+        postId: req.params.postId, // Changed from id to postId
         body: req.body,
         timestamp: new Date().toISOString(),
       })
@@ -186,15 +187,17 @@ router
   })
 
 // Update status
-router.patch("/updateProductStatus/:id", async (req, res, next) => {
+router.patch("/updateProductStatus/:postId", async (req, res, next) => {
+  // Changed from :id to :postId
   try {
     console.log("Update status request received:", {
-      id: req.params.id,
+      postId: req.params.postId, // Changed from id to postId
       status: req.body.status,
       timestamp: new Date().toISOString(),
     })
 
-    if (!req.params.id) {
+    if (!req.params.postId) {
+      // Changed from id to postId
       return res.status(400).json({
         success: false,
         msg: "Product ID is required",
