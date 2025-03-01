@@ -127,44 +127,45 @@ router.get("/getPostDataById", async (req, res, next) => {
   }
 })
 
-// Delete post
-router.delete("/deleteProduct/:postId", async (req, res, next) => {
-  try {
-    console.log("Delete product request received:", {
-      id: req.params.postId,
-      timestamp: new Date().toISOString(),
-    })
-    if (!req.params.postId) {
-      return res.status(400).json({
-        success: false,
-        msg: "Product ID is required",
+// Delete post - Modified to handle both DELETE and GET methods
+router
+  .route("/deleteProduct/:postId")
+  .delete(async (req, res, next) => {
+    try {
+      console.log("Delete product request received (DELETE):", {
+        id: req.params.postId,
+        timestamp: new Date().toISOString(),
       })
+      await postController.deleteProduct(req, res)
+    } catch (error) {
+      console.error("Error in delete product route:", error)
+      next(error)
     }
-    await postController.deleteProduct(req, res)
-  } catch (error) {
-    console.error("Error in delete product route:", error)
-    next(error)
-  }
-})
+  })
+  .get(async (req, res, next) => {
+    try {
+      console.log("Delete product request received (GET):", {
+        id: req.params.postId,
+        timestamp: new Date().toISOString(),
+      })
+      await postController.deleteProduct(req, res)
+    } catch (error) {
+      console.error("Error in delete product route:", error)
+      next(error)
+    }
+  })
 
-// Update post route - Simplified to handle JSON data
+// Update post route - Modified to handle both PUT and POST methods
 router
   .route("/updateProduct/:id")
   .put(async (req, res, next) => {
     try {
-      console.log("Update product request received:", {
+      console.log("Update product request received (PUT):", {
         id: req.params.id,
         body: req.body,
         timestamp: new Date().toISOString(),
       })
-      if (req.is("multipart/form-data")) {
-        upload.array("newImages", 10)(req, res, async (err) => {
-          if (err) return handleMulterError(err, req, res, next)
-          await postController.updateProduct(req, res)
-        })
-      } else {
-        await postController.updateProduct(req, res)
-      }
+      await postController.updateProduct(req, res)
     } catch (error) {
       console.error("Error in update product route:", error)
       next(error)
@@ -172,19 +173,12 @@ router
   })
   .post(async (req, res, next) => {
     try {
-      console.log("Update product request received:", {
+      console.log("Update product request received (POST):", {
         id: req.params.id,
         body: req.body,
         timestamp: new Date().toISOString(),
       })
-      if (req.is("multipart/form-data")) {
-        upload.array("newImages", 10)(req, res, async (err) => {
-          if (err) return handleMulterError(err, req, res, next)
-          await postController.updateProduct(req, res)
-        })
-      } else {
-        await postController.updateProduct(req, res)
-      }
+      await postController.updateProduct(req, res)
     } catch (error) {
       console.error("Error in update product route:", error)
       next(error)
