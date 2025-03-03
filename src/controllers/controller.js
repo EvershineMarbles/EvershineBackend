@@ -7,46 +7,66 @@ const createPost = async (req, res) => {
     console.log("Full request:", {
       body: req.body,
       files: req.files,
-      headers: req.headers
+      headers: req.headers,
     })
 
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        msg: "You must upload at least one image" 
+      return res.status(400).json({
+        success: false,
+        msg: "You must upload at least one image",
       })
     }
 
-    const price = parseFloat(req.body.price)
-    const quantityAvailable = parseFloat(req.body.quantityAvailable)
+    const price = Number.parseFloat(req.body.price)
+    const quantityAvailable = Number.parseFloat(req.body.quantityAvailable)
 
     if (isNaN(price) || price <= 0) {
       return res.status(400).json({
         success: false,
-        msg: "Price must be a valid positive number"
+        msg: "Price must be a valid positive number",
       })
     }
 
     if (isNaN(quantityAvailable) || quantityAvailable < 0) {
       return res.status(400).json({
         success: false,
-        msg: "Quantity must be a valid non-negative number"
+        msg: "Quantity must be a valid non-negative number",
       })
     }
 
-    const requiredFields = [
-      'name',
-      'category',
-      'applicationAreas'
-    ]
+    const requiredFields = ["name", "category", "applicationAreas"]
 
     for (const field of requiredFields) {
       if (!req.body[field]) {
         return res.status(400).json({
           success: false,
-          msg: `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
+          msg: `${field.charAt(0).toUpperCase() + field.slice(1)} is required`,
         })
       }
+    }
+
+    // Handle application areas
+    let applicationAreas
+    try {
+      // Check if applicationAreas is already an array or needs to be split
+      applicationAreas = Array.isArray(req.body.applicationAreas)
+        ? req.body.applicationAreas
+        : req.body.applicationAreas.split(",").map((area) => area.trim())
+
+      const validAreas = ["Flooring", "Countertops", "Walls", "Exterior", "Interior"]
+      const invalidAreas = applicationAreas.filter((area) => !validAreas.includes(area))
+
+      if (invalidAreas.length > 0) {
+        return res.status(400).json({
+          success: false,
+          msg: `Invalid application areas: ${invalidAreas.join(", ")}. Valid areas are: ${validAreas.join(", ")}`,
+        })
+      }
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        msg: "Invalid application areas format",
+      })
     }
 
     console.log("Attempting to upload images to S3...")
@@ -74,11 +94,11 @@ const createPost = async (req, res) => {
       name: req.body.name,
       price: price,
       category: req.body.category,
-      applicationAreas: req.body.applicationAreas,
+      applicationAreas: applicationAreas, // Now passing the array
       description: req.body.description || "",
       quantityAvailable: quantityAvailable,
       image: s3UploadLinks,
-      status: req.body.status || "draft" // Default status is draft
+      status: req.body.status || "draft",
     })
 
     console.log("Attempting to save post:", post)
@@ -94,95 +114,13 @@ const createPost = async (req, res) => {
     console.error("Detailed error:", {
       message: error.message,
       stack: error.stack,
-      name: error.name
+      name: error.name,
     })
 
     res.status(500).json({
       success: false,
       msg: error.message || "Internal server error",
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    })
-  }
-}
-
-// Get post by ID
-const getPostDataById = async (req, res) => {
-  try {
-    const { id } = req.query
-    console.log("Searching for post with ID:", id)
-
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        msg: "Post ID is required"
-      })
-    }
-
-    const post = await Post.find({ postId: id })
-    console.log("Found post:", post)
-
-    if (!post || post.length === 0) {
-      return res.status(404).json({
-        success: false,
-        msg: "Post not found"
-      })
-    }
-
-    res.status(200).json({
-      success: true,
-      data: post
-    })
-  } catch (error) {
-    console.error("Error fetching post:", error)
-    res.status(500).json({
-      success: false,
-      msg: error.message || "Internal server error"
-    })
-  }
-}
-
-// Get all products with optional status filter
-const getAllProducts = async (req, res) => {
-  try {
-    const { status } = req.query
-    const query = status && status !== 'all' ? { status } : {}
-    
-    const posts = await Post.find(query).sort({ createdAt: -1 })
-    res.status(200).json({
-      success: true,
-      data: posts
-    })
-  } catch (error) {
-    console.error("Error fetching posts:", error)
-    res.status(500).json({
-      success: false,
-      msg: error.message || "Internal server error"
-    })
-  }
-}
-
-// Delete product
-const deleteProduct = async (req, res) => {
-  try {
-    const { id } = req.params
-    const post = await Post.findOneAndDelete({ postId: id })
-    
-    if (!post) {
-      return res.status(404).json({
-        success: false,
-        msg: "Product not found"
-      })
-    }
-
-    res.status(200).json({
-      success: true,
-      msg: "Product deleted successfully"
-    })
-  } catch (error) {
-    console.error("Error deleting product:", error)
-    res.status(500).json({
-      success: false,
-      msg: error.message || "Internal server error"
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     })
   }
 }
@@ -192,33 +130,58 @@ const updateProduct = async (req, res) => {
   try {
     const { id } = req.params
     const updates = { ...req.body }
-    
+
     // Parse and validate numeric fields
     if (updates.price) {
-      const price = parseFloat(updates.price)
+      const price = Number.parseFloat(updates.price)
       if (isNaN(price) || price <= 0) {
         return res.status(400).json({
           success: false,
-          msg: "Price must be a valid positive number"
+          msg: "Price must be a valid positive number",
         })
       }
       updates.price = price
     }
 
     if (updates.quantityAvailable) {
-      const quantityAvailable = parseFloat(updates.quantityAvailable)
+      const quantityAvailable = Number.parseFloat(updates.quantityAvailable)
       if (isNaN(quantityAvailable) || quantityAvailable < 0) {
         return res.status(400).json({
           success: false,
-          msg: "Quantity must be a valid non-negative number"
+          msg: "Quantity must be a valid non-negative number",
         })
       }
       updates.quantityAvailable = quantityAvailable
     }
 
+    // Handle application areas if they're being updated
+    if (updates.applicationAreas) {
+      try {
+        // Check if applicationAreas is already an array or needs to be split
+        updates.applicationAreas = Array.isArray(updates.applicationAreas)
+          ? updates.applicationAreas
+          : updates.applicationAreas.split(",").map((area) => area.trim())
+
+        const validAreas = ["Flooring", "Countertops", "Walls", "Exterior", "Interior"]
+        const invalidAreas = updates.applicationAreas.filter((area) => !validAreas.includes(area))
+
+        if (invalidAreas.length > 0) {
+          return res.status(400).json({
+            success: false,
+            msg: `Invalid application areas: ${invalidAreas.join(", ")}. Valid areas are: ${validAreas.join(", ")}`,
+          })
+        }
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          msg: "Invalid application areas format",
+        })
+      }
+    }
+
     // Handle images
     let finalImages = []
-    
+
     // Handle existing images
     if (updates.existingImages) {
       try {
@@ -227,7 +190,7 @@ const updateProduct = async (req, res) => {
       } catch (error) {
         console.error("Error parsing existing images:", error)
       }
-      delete updates.existingImages // Remove from updates object
+      delete updates.existingImages
     }
 
     // Handle new image uploads
@@ -241,7 +204,7 @@ const updateProduct = async (req, res) => {
             ContentType: image.mimetype,
           }
           return await putObject(uploadParams)
-        })
+        }),
       )
       finalImages = [...finalImages, ...s3UploadLinks]
     }
@@ -252,28 +215,24 @@ const updateProduct = async (req, res) => {
     }
 
     // Validate required fields if they are being updated
-    const requiredFields = ['name', 'category', 'applicationAreas']
+    const requiredFields = ["name", "category", "applicationAreas"]
     for (const field of requiredFields) {
-      if (updates[field] === '') {
+      if (updates[field] === "") {
         return res.status(400).json({
           success: false,
-          msg: `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
+          msg: `${field.charAt(0).toUpperCase() + field.slice(1)} is required`,
         })
       }
     }
 
     console.log("Updating product with data:", updates)
 
-    const post = await Post.findOneAndUpdate(
-      { postId: id },
-      updates,
-      { new: true, runValidators: true }
-    )
+    const post = await Post.findOneAndUpdate({ postId: id }, updates, { new: true, runValidators: true })
 
     if (!post) {
-      return res.status(404).json({
+      return res.status(400).json({
         success: false,
-        msg: "Product not found"
+        msg: "Product not found",
       })
     }
 
@@ -282,63 +241,148 @@ const updateProduct = async (req, res) => {
     res.status(200).json({
       success: true,
       msg: "Product updated successfully",
-      data: post
+      data: post,
     })
   } catch (error) {
     console.error("Error updating product:", error)
     res.status(500).json({
       success: false,
       msg: error.message || "Internal server error",
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     })
   }
 }
 
-// Update product status
-const updateProductStatus = async (req, res) => {
+const getPostDataById = async (req, res) => {
   try {
     const { id } = req.params
-    const { status } = req.body
-
-    if (!['pending', 'approved', 'draft'].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        msg: "Invalid status value"
-      })
-    }
-
-    const post = await Post.findOneAndUpdate(
-      { postId: id },
-      { status },
-      { new: true }
-    )
+    const post = await Post.findOne({ postId: id })
 
     if (!post) {
       return res.status(404).json({
         success: false,
-        msg: "Product not found"
+        msg: "Post not found",
       })
     }
 
     res.status(200).json({
       success: true,
-      msg: "Product status updated successfully",
-      data: post
+      msg: "Post retrieved successfully",
+      data: post,
     })
   } catch (error) {
-    console.error("Error updating product status:", error)
+    console.error("Error getting post by ID:", error)
     res.status(500).json({
       success: false,
-      msg: error.message || "Internal server error"
+      msg: error.message || "Internal server error",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
     })
   }
 }
 
+const getAllProducts = async (req, res) => {
+  try {
+    const posts = await Post.find({})
+
+    res.status(200).json({
+      success: true,
+      msg: "Posts retrieved successfully",
+      data: posts,
+    })
+  } catch (error) {
+    console.error("Error getting all posts:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    })
+  }
+}
+
+// Update the deleteProduct function
+const deleteProduct = async (req, res) => {
+  try {
+    const { postId } = req.params // Changed from id to postId
+    console.log("Attempting to delete product with ID:", postId)
+
+    if (!postId) {
+      return res.status(400).json({
+        success: false,
+        msg: "Product ID is required",
+      })
+    }
+
+    const post = await Post.findOneAndDelete({ postId: postId })
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        msg: "Product not found",
+      })
+    }
+
+    console.log("Product deleted successfully:", post)
+
+    res.status(200).json({
+      success: true,
+      msg: "Product deleted successfully",
+    })
+  } catch (error) {
+    console.error("Error deleting product:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error",
+    })
+  }
+}
+
+const updateProductStatus = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status } = req.body
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        msg: "Status is required",
+      })
+    }
+
+    const updatedPost = await Post.findOneAndUpdate(
+      { postId: id },
+      { status: status },
+      { new: true, runValidators: true },
+    )
+
+    if (!updatedPost) {
+      return res.status(404).json({
+        success: false,
+        msg: "Post not found",
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      msg: "Post status updated successfully",
+      data: updatedPost,
+    })
+  } catch (error) {
+    console.error("Error updating post status:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    })
+  }
+}
+
+// Keep other functions unchanged
 module.exports = {
   createPost,
   getPostDataById,
   getAllProducts,
   deleteProduct,
   updateProduct,
-  updateProductStatus
+  updateProductStatus,
 }
+

@@ -31,7 +31,7 @@ const postSchema = mongoose.Schema(
       },
     },
     applicationAreas: {
-      type: [String], // Changed to array of strings
+      type: [String], // Array of strings
       required: [true, "At least one application area is required"],
       validate: {
         validator: (areas) => {
