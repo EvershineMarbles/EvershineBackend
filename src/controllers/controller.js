@@ -298,10 +298,11 @@ const getAllProducts = async (req, res) => {
     })
   }
 }
+
 // Update the deleteProduct function
 const deleteProduct = async (req, res) => {
   try {
-    const { postId } = req.params
+    const { postId } = req.params // Changed from id to postId
     console.log("Attempting to delete product with ID:", postId)
 
     if (!postId) {
