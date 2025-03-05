@@ -125,103 +125,10 @@ const createPost = async (req, res) => {
   }
 }
 
-// Get post by ID - Updated to use query parameter
-const getPostDataById = async (req, res) => {
-  try {
-    const { postId } = req.query // Using query parameter
-    console.log("Searching for post with ID:", postId)
-
-    if (!postId) {
-      return res.status(400).json({
-        success: false,
-        msg: "Post ID is required",
-      })
-    }
-
-    const post = await Post.find({ postId: postId })
-    console.log("Found post:", post)
-
-    if (!post || post.length === 0) {
-      return res.status(404).json({
-        success: false,
-        msg: "Post not found",
-      })
-    }
-
-    res.status(200).json({
-      success: true,
-      data: post,
-    })
-  } catch (error) {
-    console.error("Error fetching post:", error)
-    res.status(500).json({
-      success: false,
-      msg: error.message || "Internal server error",
-    })
-  }
-}
-
-// Get all products
-const getAllProducts = async (req, res) => {
-  try {
-    const { status } = req.query
-    const query = status && status !== "all" ? { status } : {}
-
-    const posts = await Post.find(query).sort({ createdAt: -1 })
-    res.status(200).json({
-      success: true,
-      data: posts,
-    })
-  } catch (error) {
-    console.error("Error fetching posts:", error)
-    res.status(500).json({
-      success: false,
-      msg: error.message || "Internal server error",
-    })
-  }
-}
-
-// Update the deleteProduct function
-const deleteProduct = async (req, res) => {
-  try {
-    const { postId } = req.params
-    console.log("Attempting to delete product with ID:", postId)
-
-    if (!postId) {
-      return res.status(400).json({
-        success: false,
-        msg: "Product ID is required",
-      })
-    }
-
-    const post = await Post.findOneAndDelete({ postId: postId })
-
-    if (!post) {
-      return res.status(404).json({
-        success: false,
-        msg: "Product not found",
-      })
-    }
-
-    console.log("Product deleted successfully:", post)
-
-    res.status(200).json({
-      success: true,
-      msg: "Product deleted successfully",
-    })
-  } catch (error) {
-    console.error("Error deleting product:", error)
-    res.status(500).json({
-      success: false,
-      msg: error.message || "Internal server error",
-    })
-  }
-}
-
 // Update product
 const updateProduct = async (req, res) => {
   try {
-    const { postId } = req.params // Changed from id to postId
+    const { id } = req.params
     const updates = { ...req.body }
 
     // Parse and validate numeric fields
@@ -283,7 +190,7 @@ const updateProduct = async (req, res) => {
       } catch (error) {
         console.error("Error parsing existing images:", error)
       }
-      delete updates.existingImages // Remove from updates object
+      delete updates.existingImages
     }
 
     // Handle new image uploads
@@ -320,10 +227,10 @@ const updateProduct = async (req, res) => {
 
     console.log("Updating product with data:", updates)
 
-    const post = await Post.findOneAndUpdate({ postId: postId }, updates, { new: true, runValidators: true })
+    const post = await Post.findOneAndUpdate({ postId: id }, updates, { new: true, runValidators: true })
 
     if (!post) {
-      return res.status(404).json({
+      return res.status(400).json({
         success: false,
         msg: "Product not found",
       })
@@ -346,20 +253,65 @@ const updateProduct = async (req, res) => {
   }
 }
 
-// Update product status
-const updateProductStatus = async (req, res) => {
+const getPostDataById = async (req, res) => {
   try {
-    const { postId } = req.params // Changed from id to postId
-    const { status } = req.body
+    const { id } = req.params
+    const post = await Post.findOne({ postId: id })
 
-    if (!["pending", "approved", "draft"].includes(status)) {
-      return res.status(400).json({
+    if (!post) {
+      return res.status(404).json({
         success: false,
-        msg: "Invalid status value",
+        msg: "Post not found",
       })
     }
 
-    const post = await Post.findOneAndUpdate({ postId: postId }, { status }, { new: true })
+    res.status(200).json({
+      success: true,
+      msg: "Post retrieved successfully",
+      data: post,
+    })
+  } catch (error) {
+    console.error("Error getting post by ID:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    })
+  }
+}
+
+const getAllProducts = async (req, res) => {
+  try {
+    const posts = await Post.find({})
+
+    res.status(200).json({
+      success: true,
+      msg: "Posts retrieved successfully",
+      data: posts,
+    })
+  } catch (error) {
+    console.error("Error getting all posts:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    })
+  }
+}
+// Update the deleteProduct function
+const deleteProduct = async (req, res) => {
+  try {
+    const { postId } = req.params
+    console.log("Attempting to delete product with ID:", postId)
+
+    if (!postId) {
+      return res.status(400).json({
+        success: false,
+        msg: "Product ID is required",
+      })
+    }
+
+    const post = await Post.findOneAndDelete({ postId: postId })
 
     if (!post) {
       return res.status(404).json({
@@ -368,13 +320,14 @@ const updateProductStatus = async (req, res) => {
       })
     }
 
+    console.log("Product deleted successfully:", post)
+
     res.status(200).json({
       success: true,
-      msg: "Product status updated successfully",
-      data: post,
+      msg: "Product deleted successfully",
     })
   } catch (error) {
-    console.error("Error updating product status:", error)
+    console.error("Error deleting product:", error)
     res.status(500).json({
       success: false,
       msg: error.message || "Internal server error",
@@ -382,6 +335,47 @@ const updateProductStatus = async (req, res) => {
   }
 }
 
+const updateProductStatus = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { status } = req.body
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        msg: "Status is required",
+      })
+    }
+
+    const updatedPost = await Post.findOneAndUpdate(
+      { postId: id },
+      { status: status },
+      { new: true, runValidators: true },
+    )
+
+    if (!updatedPost) {
+      return res.status(404).json({
+        success: false,
+        msg: "Post not found",
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      msg: "Post status updated successfully",
+      data: updatedPost,
+    })
+  } catch (error) {
+    console.error("Error updating post status:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    })
+  }
+}
+
+// Keep other functions unchanged
 module.exports = {
   createPost,
   getPostDataById,
