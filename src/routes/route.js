@@ -111,10 +111,10 @@ router.get("/getAllProducts", async (req, res, next) => {
 router.get("/getPostDataById", async (req, res, next) => {
   try {
     console.log("Get post by ID request received:", {
-      postId: req.query.postId,
+      id: req.query.id,
       timestamp: new Date().toISOString(),
     })
-    if (!req.query.postId) {
+    if (!req.query.id) {
       return res.status(400).json({
         success: false,
         msg: "Post ID is required",
@@ -127,45 +127,74 @@ router.get("/getPostDataById", async (req, res, next) => {
   }
 })
 
-// Delete post
-router.delete("/deleteProduct/:postId", async (req, res, next) => {
-  try {
-    console.log("Delete product request received:", {
-      postId: req.params.postId,
-      timestamp: new Date().toISOString(),
-    })
-    await postController.deleteProduct(req, res)
-  } catch (error) {
-    console.error("Error in delete product route:", error)
-    next(error)
-  }
-})
+// Delete post - Modified to handle both DELETE and GET methods
+router
+  .route("/deleteProduct/:postId")
+  .delete(async (req, res, next) => {
+    try {
+      console.log("Delete product request received (DELETE):", {
+        id: req.params.postId,
+        timestamp: new Date().toISOString(),
+      })
+      await postController.deleteProduct(req, res)
+    } catch (error) {
+      console.error("Error in delete product route:", error)
+      next(error)
+    }
+  })
+  .get(async (req, res, next) => {
+    try {
+      console.log("Delete product request received (GET):", {
+        id: req.params.postId,
+        timestamp: new Date().toISOString(),
+      })
+      await postController.deleteProduct(req, res)
+    } catch (error) {
+      console.error("Error in delete product route:", error)
+      next(error)
+    }
+  })
 
-// Update post route
-router.put("/updateProduct/:postId", async (req, res, next) => {
-  try {
-    console.log("Update product request received:", {
-      postId: req.params.postId,
-      body: req.body,
-      timestamp: new Date().toISOString(),
-    })
-    await postController.updateProduct(req, res)
-  } catch (error) {
-    console.error("Error in update product route:", error)
-    next(error)
-  }
-})
+// Update post route - Modified to handle both PUT and POST methods
+router
+  .route("/updateProduct/:id")
+  .put(async (req, res, next) => {
+    try {
+      console.log("Update product request received (PUT):", {
+        id: req.params.id,
+        body: req.body,
+        timestamp: new Date().toISOString(),
+      })
+      await postController.updateProduct(req, res)
+    } catch (error) {
+      console.error("Error in update product route:", error)
+      next(error)
+    }
+  })
+  .post(async (req, res, next) => {
+    try {
+      console.log("Update product request received (POST):", {
+        id: req.params.id,
+        body: req.body,
+        timestamp: new Date().toISOString(),
+      })
+      await postController.updateProduct(req, res)
+    } catch (error) {
+      console.error("Error in update product route:", error)
+      next(error)
+    }
+  })
 
 // Update status
-router.patch("/updateProductStatus/:postId", async (req, res, next) => {
+router.patch("/updateProductStatus/:id", async (req, res, next) => {
   try {
     console.log("Update status request received:", {
-      postId: req.params.postId,
+      id: req.params.id,
       status: req.body.status,
       timestamp: new Date().toISOString(),
     })
 
-    if (!req.params.postId) {
+    if (!req.params.id) {
       return res.status(400).json({
         success: false,
         msg: "Product ID is required",
@@ -197,3 +226,4 @@ router.use((error, req, res, next) => {
 })
 
 module.exports = router
+
