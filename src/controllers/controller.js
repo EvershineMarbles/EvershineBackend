@@ -161,28 +161,40 @@ const getAllProducts = async (req, res) => {
   }
 }
 
-// Delete product
+
+// Update the deleteProduct function
 const deleteProduct = async (req, res) => {
   try {
-    const { id } = req.params
-    const post = await Post.findOneAndDelete({ postId: id })
-    
-    if (!post) {
-      return res.status(404).json({
+    const { postId } = req.params
+    console.log("Attempting to delete product with ID:", postId)
+
+    if (!postId) {
+      return res.status(400).json({
         success: false,
-        msg: "Product not found"
+        msg: "Product ID is required",
       })
     }
 
+    const post = await Post.findOneAndDelete({ postId: postId })
+
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        msg: "Product not found",
+      })
+    }
+
+    console.log("Product deleted successfully:", post)
+
     res.status(200).json({
       success: true,
-      msg: "Product deleted successfully"
+      msg: "Product deleted successfully",
     })
   } catch (error) {
     console.error("Error deleting product:", error)
     res.status(500).json({
       success: false,
-      msg: error.message || "Internal server error"
+      msg: error.message || "Internal server error",
     })
   }
 }
