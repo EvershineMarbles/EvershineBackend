@@ -31,12 +31,17 @@ const postSchema = mongoose.Schema(
       },
     },
     applicationAreas: {
-      type: [String], // Changed to array of strings
+      type: String, // Keep as string for backward compatibility
       required: [true, "At least one application area is required"],
       validate: {
-        validator: (areas) => {
+        validator: (value) => {
+          if (!value) return false
+
+          // Split the comma-separated string and check if each area is valid
+          const areas = value.split(",").map((area) => area.trim())
           const validAreas = ["Flooring", "Countertops", "Walls", "Exterior", "Interior"]
-          return Array.isArray(areas) && areas.length > 0 && areas.every((area) => validAreas.includes(area))
+
+          return areas.length > 0 && areas.every((area) => validAreas.includes(area))
         },
         message: "Invalid application area. Must be one of: Flooring, Countertops, Walls, Exterior, Interior",
       },
@@ -51,6 +56,20 @@ const postSchema = mongoose.Schema(
       required: [true, "Quantity is required"],
       min: [0, "Quantity cannot be negative"],
     },
+    // New fields
+    size: {
+      type: String,
+      required: false,
+    },
+    numberOfPieces: {
+      type: Number,
+      required: false,
+      min: [0, "Number of pieces cannot be negative"],
+    },
+    thickness: {
+      type: String,
+      required: false,
+    },
     image: {
       type: [String],
       required: [true, "At least one image is required"],
@@ -64,6 +83,11 @@ const postSchema = mongoose.Schema(
       required: true,
       unique: true,
       default: () => Date.now().toString() + Math.floor(Math.random() * 1000).toString(),
+    },
+    status: {
+      type: String,
+      enum: ["draft", "pending", "approved"],
+      default: "draft",
     },
   },
   {
