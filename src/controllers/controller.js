@@ -15,7 +15,7 @@ const createPost = async (req, res) => {
     const quantityAvailable = Number.parseFloat(req.body.quantityAvailable)
 
     // Parse numberOfPieces if provided
-    let numberOfPieces = undefined
+    let numberOfPieces = null
     if (req.body.numberOfPieces) {
       numberOfPieces = Number.parseInt(req.body.numberOfPieces)
       if (isNaN(numberOfPieces) || numberOfPieces < 0) {
@@ -25,6 +25,10 @@ const createPost = async (req, res) => {
         })
       }
     }
+
+    // Get size and thickness from request body
+    const size = req.body.size || ""
+    const thickness = req.body.thickness || ""
 
     if (isNaN(price) || price <= 0) {
       return res.status(400).json({
@@ -79,9 +83,9 @@ const createPost = async (req, res) => {
       image: s3UploadLinks,
       status: req.body.status || "draft",
       // Always include these fields with default values if not provided
-      size: req.body.size || "",
-      thickness: req.body.thickness || "",
-      numberOfPieces: numberOfPieces !== undefined ? numberOfPieces : null,
+      size: size,
+      thickness: thickness,
+      numberOfPieces: numberOfPieces,
     }
 
     const post = new Post(postData)
@@ -397,3 +401,4 @@ module.exports = {
   updateProduct,
   updateProductStatus,
 }
+
