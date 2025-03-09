@@ -4,11 +4,12 @@ const Post = require("../database/models/postModel")
 // Create post
 const createPost = async (req, res) => {
   try {
-    console.log("Full request:", {
-      body: req.body,
-      files: req.files,
-      headers: req.headers,
-    })
+    // Log the entire request body and files
+    console.log("Request body:", req.body)
+    console.log(
+      "Request files:",
+      req.files?.map((f) => f.originalname),
+    )
 
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -19,6 +20,13 @@ const createPost = async (req, res) => {
 
     const price = Number.parseFloat(req.body.price)
     const quantityAvailable = Number.parseFloat(req.body.quantityAvailable)
+
+    // Log the optional fields specifically
+    console.log("Optional fields received:", {
+      size: req.body.size,
+      numberOfPieces: req.body.numberOfPieces,
+      thickness: req.body.thickness,
+    })
 
     // Parse numberOfPieces if provided
     let numberOfPieces = undefined
@@ -85,17 +93,21 @@ const createPost = async (req, res) => {
       applicationAreas: req.body.applicationAreas,
       description: req.body.description || "",
       quantityAvailable: quantityAvailable,
-      // Add new fields with proper defaults
+      // Add new fields with proper defaults and explicit logging
       size: req.body.size || "",
       numberOfPieces: numberOfPieces !== undefined ? numberOfPieces : null,
       thickness: req.body.thickness || "",
       image: s3UploadLinks,
-      status: req.body.status || "draft", // Default status is draft
+      status: req.body.status || "draft",
     })
 
-    console.log("Attempting to save post:", post)
+    // Log the post object before saving
+    console.log("Post object before saving:", post.toObject())
+
     const postData = await post.save()
-    console.log("Post saved successfully:", postData)
+
+    // Log the saved post data
+    console.log("Saved post data:", postData.toObject())
 
     res.status(200).json({
       success: true,
@@ -131,12 +143,23 @@ const getPostDataById = async (req, res) => {
     }
 
     const post = await Post.find({ postId: id })
-    console.log("Found post:", post)
+
+    // Log the found post with all fields
+    console.log("Found post with details:", post)
 
     if (!post || post.length === 0) {
       return res.status(404).json({
         success: false,
         msg: "Post not found",
+      })
+    }
+
+    // Log the specific fields we're interested in
+    if (post[0]) {
+      console.log("Optional fields in found post:", {
+        size: post[0].size,
+        numberOfPieces: post[0].numberOfPieces,
+        thickness: post[0].thickness,
       })
     }
 
@@ -173,7 +196,7 @@ const getAllProducts = async (req, res) => {
   }
 }
 
-// Delete product
+// Update the deleteProduct function
 const deleteProduct = async (req, res) => {
   try {
     const { postId } = req.params
