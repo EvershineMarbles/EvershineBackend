@@ -86,33 +86,45 @@ const createPost = async (req, res) => {
 
     console.log("S3 upload successful:", s3UploadLinks)
 
-    const post = new Post({
+    // Create post with proper handling of optional fields
+    const postData = {
       name: req.body.name,
       price: price,
       category: req.body.category,
       applicationAreas: req.body.applicationAreas,
       description: req.body.description || "",
       quantityAvailable: quantityAvailable,
-      // Add new fields with proper defaults and explicit logging
-      size: req.body.size || "",
-      numberOfPieces: numberOfPieces !== undefined ? numberOfPieces : null,
-      thickness: req.body.thickness || "",
       image: s3UploadLinks,
       status: req.body.status || "draft",
-    })
+    }
+
+    // Add optional fields only if they exist in the request
+    if (req.body.size) {
+      postData.size = req.body.size
+    }
+
+    if (numberOfPieces !== undefined) {
+      postData.numberOfPieces = numberOfPieces
+    }
+
+    if (req.body.thickness) {
+      postData.thickness = req.body.thickness
+    }
+
+    const post = new Post(postData)
 
     // Log the post object before saving
     console.log("Post object before saving:", post.toObject())
 
-    const postData = await post.save()
+    const savedPost = await post.save()
 
     // Log the saved post data
-    console.log("Saved post data:", postData.toObject())
+    console.log("Saved post data:", savedPost.toObject())
 
     res.status(200).json({
       success: true,
       msg: "Post created successfully",
-      data: postData,
+      data: savedPost,
     })
   } catch (error) {
     console.error("Detailed error:", {
@@ -145,7 +157,7 @@ const getPostDataById = async (req, res) => {
     const post = await Post.find({ postId: id })
 
     // Log the found post with all fields
-    console.log("Found post with details:", post)
+    console.log("Found post with details:", JSON.stringify(post, null, 2))
 
     if (!post || post.length === 0) {
       return res.status(404).json({

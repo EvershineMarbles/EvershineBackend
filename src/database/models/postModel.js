@@ -31,13 +31,16 @@ const postSchema = mongoose.Schema(
       },
     },
     applicationAreas: {
-      type: String,
+      type: String, // Keep as string for backward compatibility
       required: [true, "At least one application area is required"],
       validate: {
         validator: (value) => {
           if (!value) return false
+
+          // Split the comma-separated string and check if each area is valid
           const areas = value.split(",").map((area) => area.trim())
           const validAreas = ["Flooring", "Countertops", "Walls", "Exterior", "Interior"]
+
           return areas.length > 0 && areas.every((area) => validAreas.includes(area))
         },
         message: "Invalid application area. Must be one of: Flooring, Countertops, Walls, Exterior, Interior",
@@ -53,7 +56,7 @@ const postSchema = mongoose.Schema(
       required: [true, "Quantity is required"],
       min: [0, "Quantity cannot be negative"],
     },
-    // Update optional fields with proper defaults
+    // New fields
     size: {
       type: String,
       required: false,
