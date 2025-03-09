@@ -86,7 +86,7 @@ const createPost = async (req, res) => {
 
     console.log("S3 upload successful:", s3UploadLinks)
 
-    // Create post with proper handling of optional fields
+    // Create post with explicit handling of optional fields
     const postData = {
       name: req.body.name,
       price: price,
@@ -96,19 +96,10 @@ const createPost = async (req, res) => {
       quantityAvailable: quantityAvailable,
       image: s3UploadLinks,
       status: req.body.status || "draft",
-    }
-
-    // Add optional fields only if they exist in the request
-    if (req.body.size) {
-      postData.size = req.body.size
-    }
-
-    if (numberOfPieces !== undefined) {
-      postData.numberOfPieces = numberOfPieces
-    }
-
-    if (req.body.thickness) {
-      postData.thickness = req.body.thickness
+      // Always include these fields with default values if not provided
+      size: req.body.size || "",
+      thickness: req.body.thickness || "",
+      numberOfPieces: numberOfPieces !== undefined ? numberOfPieces : null,
     }
 
     const post = new Post(postData)
@@ -156,7 +147,7 @@ const getPostDataById = async (req, res) => {
 
     const post = await Post.find({ postId: id })
 
-    // Log the found post with all fields
+    // Enhanced logging
     console.log("Found post with details:", JSON.stringify(post, null, 2))
 
     if (!post || post.length === 0) {
@@ -166,12 +157,56 @@ const getPostDataById = async (req, res) => {
       })
     }
 
-    // Log the specific fields we're interested in
+    // More detailed logging of the specific fields
     if (post[0]) {
-      console.log("Optional fields in found post:", {
-        size: post[0].size,
-        numberOfPieces: post[0].numberOfPieces,
-        thickness: post[0].thickness,
+      console.log("Optional fields in found post (detailed):", {
+        size: {
+          value: post[0].size,
+          type: typeof post[0].size,
+          exists: post[0].hasOwnProperty("size"),
+          isEmpty: post[0].size === "",
+          isNull: post[0].size === null,
+          isUndefined: post[0].size === undefined,
+        },
+        numberOfPieces: {
+          value: post[0].numberOfPieces,
+          type: typeof post[0].numberOfPieces,
+          exists: post[0].hasOwnProperty("numberOfPieces"),
+          isZero: post[0].numberOfPieces === 0,
+          isNull: post[0].numberOfPieces === null,
+          isUndefined: post[0].numberOfPieces === undefined,
+        },
+        thickness: {
+          value: post[0].thickness,
+          type: typeof post[0].thickness,
+          exists: post[0].hasOwnProperty("thickness"),
+          isEmpty: post[0].thickness === "",
+          isNull: post[0].thickness === null,
+          isUndefined: post[0].thickness === undefined,
+        },
+      })
+
+      // Add missing fields to the response if they don't exist
+      const productData = post[0].toObject()
+
+      // Ensure these fields exist in the response
+      if (!("size" in productData)) {
+        productData.size = ""
+      }
+
+      if (!("numberOfPieces" in productData)) {
+        productData.numberOfPieces = null
+      }
+
+      if (!("thickness" in productData)) {
+        productData.thickness = ""
+      }
+
+      console.log("Modified product data with added fields:", productData)
+
+      return res.status(200).json({
+        success: true,
+        data: [productData],
       })
     }
 
@@ -350,7 +385,26 @@ const updateProduct = async (req, res) => {
 
     console.log("Updating product with data:", updates)
 
-    const post = await Post.findOneAndUpdate({ postId: id }, updates, { new: true, runValidators: true })
+    // Always include the optional fields in the update
+    if (!("size" in updates)) {
+      updates.size = ""
+    }
+
+    if (!("numberOfPieces" in updates)) {
+      updates.numberOfPieces = null
+    }
+
+    if (!("thickness" in updates)) {
+      updates.thickness = ""
+    }
+
+    const post = await Post.findOneAndUpdate({ postId: id }, updates, {
+      new: true,
+      runValidators: true,
+      // This option ensures that if the document doesn't have these fields, they will be added
+      upsert: false,
+      setDefaultsOnInsert: true,
+    })
 
     if (!post) {
       return res.status(404).json({
