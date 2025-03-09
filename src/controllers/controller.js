@@ -117,7 +117,9 @@ const getPostDataById = async (req, res) => {
       })
     }
 
+    console.log(`Fetching product with ID: ${id}`)
     const post = await Post.find({ postId: id })
+    console.log("Raw database result:", JSON.stringify(post, null, 2))
 
     if (!post || post.length === 0) {
       return res.status(404).json({
@@ -129,19 +131,25 @@ const getPostDataById = async (req, res) => {
     // Add missing fields to the response if they don't exist
     if (post[0]) {
       const productData = post[0].toObject()
+      console.log("Before adding missing fields:", JSON.stringify(productData, null, 2))
 
       // Ensure these fields exist in the response
       if (!("size" in productData)) {
+        console.log("Adding missing 'size' field")
         productData.size = ""
       }
 
       if (!("numberOfPieces" in productData)) {
+        console.log("Adding missing 'numberOfPieces' field")
         productData.numberOfPieces = null
       }
 
       if (!("thickness" in productData)) {
+        console.log("Adding missing 'thickness' field")
         productData.thickness = ""
       }
+
+      console.log("After adding missing fields:", JSON.stringify(productData, null, 2))
 
       return res.status(200).json({
         success: true,
@@ -154,6 +162,7 @@ const getPostDataById = async (req, res) => {
       data: post,
     })
   } catch (error) {
+    console.error("Error in getPostDataById:", error)
     res.status(500).json({
       success: false,
       msg: error.message || "Internal server error",
