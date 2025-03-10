@@ -4,6 +4,12 @@ const Post = require("../database/models/postModel")
 // Create post
 const createPost = async (req, res) => {
   try {
+    console.log("Full request:", {
+      body: req.body,
+      files: req.files,
+      headers: req.headers,
+    })
+
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
         success: false,
@@ -25,11 +31,6 @@ const createPost = async (req, res) => {
         })
       }
     }
-
-    // Get size, thickness, and qualityAvailabhhhh from request body
-    const size = req.body.size || ""
-    const thickness = req.body.thickness || ""
-    const qualityAvailabhhhh = req.body.qualityAvailabhhhh || ""
 
     if (isNaN(price) || price <= 0) {
       return res.status(400).json({
@@ -56,6 +57,21 @@ const createPost = async (req, res) => {
       }
     }
 
+    // Handle application areas
+    let applicationAreas
+    try {
+      // Check if applicationAreas is already an array or needs to be split
+      applicationAreas = Array.isArray(req.body.applicationAreas)
+        ? req.body.applicationAreas.join(",")
+        : req.body.applicationAreas
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        msg: "Invalid application areas format",
+      })
+    }
+
+    console.log("Attempting to upload images to S3...")
     const s3UploadLinks = await Promise.all(
       req.files.map(async (image) => {
         const uploadParams = {
@@ -68,37 +84,51 @@ const createPost = async (req, res) => {
         try {
           return await putObject(uploadParams)
         } catch (error) {
+          console.error("S3 upload error:", error)
           throw new Error(`Failed to upload image: ${error.message}`)
         }
       }),
     )
 
-    // Create post with explicit handling of optional fields
-    const postData = {
+    console.log("S3 upload successful:", s3UploadLinks)
+
+    console.log("Creating post with data:", {
+      size: req.body.size,
+      numberOfPieces: req.body.numberOfPieces,
+      thickness: req.body.thickness,
+    })
+
+    const post = new Post({
       name: req.body.name,
       price: price,
       category: req.body.category,
-      applicationAreas: req.body.applicationAreas,
+      applicationAreas: applicationAreas,
       description: req.body.description || "",
       quantityAvailable: quantityAvailable,
+      // Add the new fields
+      size: req.body.size || "",
+      numberOfPieces: req.body.numberOfPieces ? Number(req.body.numberOfPieces) : null,
+      thickness: req.body.thickness || "",
       image: s3UploadLinks,
       status: req.body.status || "draft",
-      // Always include these fields with default values if not provided
-      size: size,
-      thickness: thickness,
-      numberOfPieces: numberOfPieces,
-      qualityAvailabhhhh: qualityAvailabhhhh,
-    }
+    })
 
-    const post = new Post(postData)
-    const savedPost = await post.save()
+    console.log("Attempting to save post:", post)
+    const postData = await post.save()
+    console.log("Post saved successfully:", postData)
 
     res.status(200).json({
       success: true,
       msg: "Post created successfully",
-      data: savedPost,
+      data: postData,
     })
   } catch (error) {
+    console.error("Detailed error:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    })
+
     res.status(500).json({
       success: false,
       msg: error.message || "Internal server error",
@@ -107,132 +137,10 @@ const createPost = async (req, res) => {
   }
 }
 
-// Get post by ID
-const getPostDataById = async (req, res) => {
-  try {
-    const { id } = req.query
-
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        msg: "Post ID is required",
-      })
-    }
-
-    console.log(`Fetching product with ID: ${id}`)
-    const post = await Post.find({ postId: id })
-    console.log("Raw database result:", JSON.stringify(post, null, 2))
-
-    if (!post || post.length === 0) {
-      return res.status(404).json({
-        success: false,
-        msg: "Post not found",
-      })
-    }
-
-    // Add missing fields to the response if they don't exist
-    if (post[0]) {
-      const productData = post[0].toObject()
-      console.log("Before adding missing fields:", JSON.stringify(productData, null, 2))
-
-      // Ensure these fields exist in the response
-      if (!("size" in productData)) {
-        console.log("Adding missing 'size' field")
-        productData.size = ""
-      }
-
-      if (!("numberOfPieces" in productData)) {
-        console.log("Adding missing 'numberOfPieces' field")
-        productData.numberOfPieces = null
-      }
-
-      if (!("thickness" in productData)) {
-        console.log("Adding missing 'thickness' field")
-        productData.thickness = ""
-      }
-
-      if (!("qualityAvailabhhhh" in productData)) {
-        console.log("Adding missing 'qualityAvailabhhhh' field")
-        productData.qualityAvailabhhhh = ""
-      }
-
-      console.log("After adding missing fields:", JSON.stringify(productData, null, 2))
-
-      return res.status(200).json({
-        success: true,
-        data: [productData],
-      })
-    }
-
-    res.status(200).json({
-      success: true,
-      data: post,
-    })
-  } catch (error) {
-    console.error("Error in getPostDataById:", error)
-    res.status(500).json({
-      success: false,
-      msg: error.message || "Internal server error",
-    })
-  }
-}
-
-// Get all products with optional status filter
-const getAllProducts = async (req, res) => {
-  try {
-    const { status } = req.query
-    const query = status && status !== "all" ? { status } : {}
-
-    const posts = await Post.find(query).sort({ createdAt: -1 })
-    res.status(200).json({
-      success: true,
-      data: posts,
-    })
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      msg: error.message || "Internal server error",
-    })
-  }
-}
-
-// Update the deleteProduct function
-const deleteProduct = async (req, res) => {
-  try {
-    const { postId } = req.params
-
-    if (!postId) {
-      return res.status(400).json({
-        success: false,
-        msg: "Product ID is required",
-      })
-    }
-
-    const post = await Post.findOneAndDelete({ postId: postId })
-
-    if (!post) {
-      return res.status(404).json({
-        success: false,
-        msg: "Product not found",
-      })
-    }
-
-    res.status(200).json({
-      success: true,
-      msg: "Product deleted successfully",
-    })
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      msg: error.message || "Internal server error",
-    })
-  }
-}
-
 // Update product
 const updateProduct = async (req, res) => {
   try {
-    const { id } = req.params
+    const { postId } = req.params
     const updates = { ...req.body }
 
     // Parse and validate numeric fields
@@ -268,28 +176,21 @@ const updateProduct = async (req, res) => {
         })
       }
       updates.numberOfPieces = numberOfPieces
-    } else if (updates.numberOfPieces === "") {
-      // Handle empty string case for numberOfPieces
-      updates.numberOfPieces = null
     }
 
-    // Ensure size, thickness, and qualityAvailabhhhh are properly handled
-    if (updates.size === undefined) {
-      // Don't change if not provided
-    } else if (updates.size === "") {
-      updates.size = ""
-    }
-
-    if (updates.thickness === undefined) {
-      // Don't change if not provided
-    } else if (updates.thickness === "") {
-      updates.thickness = ""
-    }
-
-    if (updates.qualityAvailabhhhh === undefined) {
-      // Don't change if not provided
-    } else if (updates.qualityAvailabhhhh === "") {
-      updates.qualityAvailabhhhh = ""
+    // Handle application areas if they're being updated
+    if (updates.applicationAreas) {
+      try {
+        // Check if applicationAreas is already an array or needs to be split
+        updates.applicationAreas = Array.isArray(updates.applicationAreas)
+          ? updates.applicationAreas.join(",")
+          : updates.applicationAreas
+      } catch (error) {
+        return res.status(400).json({
+          success: false,
+          msg: "Invalid application areas format",
+        })
+      }
     }
 
     // Handle images
@@ -301,9 +202,9 @@ const updateProduct = async (req, res) => {
         const existingImages = JSON.parse(updates.existingImages)
         finalImages = [...existingImages]
       } catch (error) {
-        // Error parsing existing images
+        console.error("Error parsing existing images:", error)
       }
-      delete updates.existingImages // Remove from updates object
+      delete updates.existingImages
     }
 
     // Handle new image uploads
@@ -338,30 +239,15 @@ const updateProduct = async (req, res) => {
       }
     }
 
-    // Always include the optional fields in the update
-    if (!("size" in updates)) {
-      updates.size = ""
-    }
-
-    if (!("numberOfPieces" in updates)) {
-      updates.numberOfPieces = null
-    }
-
-    if (!("thickness" in updates)) {
-      updates.thickness = ""
-    }
-
-    if (!("qualityAvailabhhhh" in updates)) {
-      updates.qualityAvailabhhhh = ""
-    }
-
-    const post = await Post.findOneAndUpdate({ postId: id }, updates, {
-      new: true,
-      runValidators: true,
-      // This option ensures that if the document doesn't have these fields, they will be added
-      upsert: false,
-      setDefaultsOnInsert: true,
+    console.log("Updating product with data including new fields:", {
+      size: updates.size,
+      numberOfPieces: updates.numberOfPieces,
+      thickness: updates.thickness,
     })
+
+    console.log("Updating product with data:", updates)
+
+    const post = await Post.findOneAndUpdate({ postId: postId }, updates, { new: true, runValidators: true })
 
     if (!post) {
       return res.status(404).json({
@@ -370,12 +256,15 @@ const updateProduct = async (req, res) => {
       })
     }
 
+    console.log("Product updated successfully:", post)
+
     res.status(200).json({
       success: true,
       msg: "Product updated successfully",
       data: post,
     })
   } catch (error) {
+    console.error("Error updating product:", error)
     res.status(500).json({
       success: false,
       msg: error.message || "Internal server error",
@@ -384,20 +273,75 @@ const updateProduct = async (req, res) => {
   }
 }
 
-// Update product status
-const updateProductStatus = async (req, res) => {
+// Get post by ID
+const getPostDataById = async (req, res) => {
   try {
-    const { id } = req.params
-    const { status } = req.body
+    const { postId } = req.query
+    console.log("Searching for post with ID:", postId)
 
-    if (!["pending", "approved", "draft"].includes(status)) {
+    if (!postId) {
       return res.status(400).json({
         success: false,
-        msg: "Invalid status value",
+        msg: "Post ID is required",
       })
     }
 
-    const post = await Post.findOneAndUpdate({ postId: id }, { status }, { new: true })
+    const post = await Post.find({ postId: postId })
+    console.log("Found post:", post)
+
+    if (!post || post.length === 0) {
+      return res.status(404).json({
+        success: false,
+        msg: "Post not found",
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      data: post,
+    })
+  } catch (error) {
+    console.error("Error fetching post:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error",
+    })
+  }
+}
+
+const getAllProducts = async (req, res) => {
+  try {
+    const posts = await Post.find({})
+
+    res.status(200).json({
+      success: true,
+      msg: "Posts retrieved successfully",
+      data: posts,
+    })
+  } catch (error) {
+    console.error("Error getting all posts:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    })
+  }
+}
+
+// Update the deleteProduct function
+const deleteProduct = async (req, res) => {
+  try {
+    const { postId } = req.params
+    console.log("Attempting to delete product with ID:", postId)
+
+    if (!postId) {
+      return res.status(400).json({
+        success: false,
+        msg: "Product ID is required",
+      })
+    }
+
+    const post = await Post.findOneAndDelete({ postId: postId })
 
     if (!post) {
       return res.status(404).json({
@@ -406,12 +350,14 @@ const updateProductStatus = async (req, res) => {
       })
     }
 
+    console.log("Product deleted successfully:", post)
+
     res.status(200).json({
       success: true,
-      msg: "Product status updated successfully",
-      data: post,
+      msg: "Product deleted successfully",
     })
   } catch (error) {
+    console.error("Error deleting product:", error)
     res.status(500).json({
       success: false,
       msg: error.message || "Internal server error",
@@ -419,6 +365,47 @@ const updateProductStatus = async (req, res) => {
   }
 }
 
+const updateProductStatus = async (req, res) => {
+  try {
+    const { postId } = req.params
+    const { status } = req.body
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        msg: "Status is required",
+      })
+    }
+
+    const updatedPost = await Post.findOneAndUpdate(
+      { postId: postId },
+      { status: status },
+      { new: true, runValidators: true },
+    )
+
+    if (!updatedPost) {
+      return res.status(404).json({
+        success: false,
+        msg: "Post not found",
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      msg: "Post status updated successfully",
+      data: updatedPost,
+    })
+  } catch (error) {
+    console.error("Error updating post status:", error)
+    res.status(500).json({
+      success: false,
+      msg: error.message || "Internal server error",
+      details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    })
+  }
+}
+
+// Keep other functions unchanged
 module.exports = {
   createPost,
   getPostDataById,
