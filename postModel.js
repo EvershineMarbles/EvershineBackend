@@ -56,12 +56,6 @@ const postSchema = mongoose.Schema(
       required: [true, "Quantity is required"],
       min: [0, "Quantity cannot be negative"],
     },
-    // New field for Quality Availabhhhh
-    qualityAvailabhhhh: {
-      type: String,
-      required: false,
-      default: "",
-    },
     // New fields
     size: {
       type: String,
